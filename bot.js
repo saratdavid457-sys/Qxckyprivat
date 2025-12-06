@@ -1,17 +1,17 @@
+require("dotenv").config();
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require("discord.js");
 const fetch = require("node-fetch");
 const crypto = require("crypto");
 
-// TOKENURI
-const DISCORD_TOKEN = "MTQ0NjIyMzIxNjc5MDk5OTIxMg.GZu5Fv.f_54G_MxjzILlDUvxOaC-C1oKuet_FzJ3nzsq4";
-const GITHUB_TOKEN = "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";
-const REPO_OWNER = "saratdavid457-sys";
-const REPO_NAME = "Qxckyprivat";
-const FILE_PATH = "keys.json";
+// Tokenuri și config din .env
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+const GITHUB_TOKEN  = process.env.GITHUB_TOKEN;
+const REPO_OWNER    = process.env.REPO_OWNER;
+const REPO_NAME     = process.env.REPO_NAME;
+const OWNER_ID      = process.env.OWNER_ID;
+const FILE_PATH     = "keys.json";
 
-const OWNER_ID = "1274716958218125435";
-
-// creează key
+// Generare key
 function makeKey() {
     const random = crypto.randomBytes(6).toString("hex");
     return "qxcky-" + random;
@@ -25,7 +25,7 @@ const DURATIONS = {
     lifetime: 0
 };
 
-// setup bot
+// Setup bot
 const bot = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -33,18 +33,24 @@ const bot = new Client({
     ]
 });
 
-// încarcă keys.json
+// Încarcă key-urile
 async function loadKeys() {
-    const res = await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/${FILE_PATH}`);
-    const json = await res.json();
-    return json;
+    const url = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/${FILE_PATH}`;
+    const res = await fetch(url);
+    return await res.json();
 }
 
-// salvează keys.json
+// Salvează key-urile în GitHub
 async function saveKeys(keys) {
     const content = Buffer.from(JSON.stringify(keys, null, 2)).toString("base64");
 
-    const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
+    const getFile = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
+        headers: { Authorization: `token ${GITHUB_TOKEN}` }
+    });
+
+    const fileInfo = await getFile.json();
+
+    await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
         method: "PUT",
         headers: {
             "Authorization": `token ${GITHUB_TOKEN}`,
@@ -53,19 +59,17 @@ async function saveKeys(keys) {
         body: JSON.stringify({
             message: "update keys",
             content: content,
-            sha: (await (await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`)).json()).sha
+            sha: fileInfo.sha
         })
     });
-
-    return await res.json();
 }
 
-// comenzi
+// Slash command
 const commands = [
     new SlashCommandBuilder()
         .setName("genkey")
-        .setDescription("Generează un key")
-        .addUserOption(o => o.setName("owner").setDescription("Cine primește key-ul").setRequired(true))
+        .setDescription("Generează un key pentru un utilizator")
+        .addUserOption(o => o.setName("owner").setDescription("Userul").setRequired(true))
         .addStringOption(o => o.setName("duration").setDescription("Durata").setRequired(true)
             .addChoices(
                 { name: "day", value: "day" },
@@ -75,7 +79,7 @@ const commands = [
             ))
 ];
 
-// deploy commands
+// Deploy commands
 bot.once("ready", async () => {
     console.log("Bot online!");
 
@@ -85,10 +89,10 @@ bot.once("ready", async () => {
         { body: commands }
     );
 
-    console.log("Slash commands registered.");
+    console.log("Slash commands ready!");
 });
 
-// handler
+// Handle commands
 bot.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName !== "genkey") return;
@@ -114,7 +118,8 @@ bot.on("interactionCreate", async interaction => {
 
     await owner.send(`Key-ul tău:\n\`${key}\`\nDurată: ${duration}`);
 
-    return interaction.reply({ content: `Key trimis la ${owner.username}`, ephemeral: true });
+    return interaction.reply({ content: `Key trimis la ${owner.username}!`, ephemeral: true });
 });
 
 bot.login(DISCORD_TOKEN);
+
